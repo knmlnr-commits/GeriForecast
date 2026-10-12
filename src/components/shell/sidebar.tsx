@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
@@ -13,7 +14,7 @@ export function Sidebar() {
   return (
     <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-stone-200 bg-stone-50">
       <div className="flex h-14 items-center gap-2.5 px-4">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-sm font-bold text-white">G</span>
+        <Image src="/logo.png" alt="" width={32} height={32} priority />
         <span className="text-lg font-bold text-stone-700">GeriForce</span>
       </div>
 
