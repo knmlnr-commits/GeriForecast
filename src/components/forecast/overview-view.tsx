@@ -1,119 +1,73 @@
-"use client";
-
-import { useMemo, useState } from "react";
-import { ForecastChart } from "@/components/forecast/forecast-chart";
-import { getSeries, REGIONS, type Region } from "@/lib/synthetic-data";
+import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
+import { BusiestLocations } from "@/components/forecast/busiest-locations";
+import { Card } from "@/components/forecast/card";
+import { ComponentBars } from "@/components/forecast/component-bars";
+import { DailyChart } from "@/components/forecast/daily-chart";
+import { Heatmap } from "@/components/forecast/heatmap";
+import { KpiCard } from "@/components/forecast/kpi-card";
+import { computeOverview } from "@/lib/geriforecast/data";
+import { formatDateLong, formatDayShort, formatHour } from "@/lib/geriforecast/format";
 
 export function OverviewView() {
-  const [region, setRegion] = useState<Region>("Midden");
-  const data = useMemo(() => getSeries(region), [region]);
-
-  const lastActual = [...data].reverse().find((d) => d.actual !== null)!;
-  const forecast = data.filter((d) => d.actual === null);
-  const peak = forecast.reduce((a, b) => (b.upper > a.upper ? b : a));
-  const weeksOverCapacity = forecast.filter((d) => d.upper > d.capacity).length;
-  const occupancy = Math.round((lastActual.actual! / lastActual.capacity) * 100);
+  const { endDate, kpis, days, components, heatmap, locations } = computeOverview();
+  const DeltaIcon = kpis.delta < 0 ? ArrowDownRight : kpis.delta > 0 ? ArrowUpRight : ArrowRight;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
-            Prototype · synthetische data
-          </p>
-          <h1 className="text-2xl font-semibold">GeriForecast</h1>
-          <p className="text-sm text-slate-500">Verwachte zorgvraag (aantal cliënten) per week, komende 12 weken.</p>
-        </div>
-        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 p-1 text-sm">
-          {REGIONS.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRegion(r)}
-              className={`rounded-md px-3 py-1.5 ${
-                r === region ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      </header>
+    <div className="mx-auto max-w-[1180px] space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold text-stone-800">Overzicht</h1>
+        <p className="mt-1 max-w-3xl text-sm text-stone-700">
+          Druktegetal voor alle regio&apos;s, afgelopen 7 dagen tot en met {formatDateLong(endDate)} (einde van de
+          synthetische dataset). 100 is een gemiddeld uur; hoger is drukker.
+        </p>
+      </div>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Huidige bezetting" value={`${occupancy}%`} sub={`${lastActual.actual} van ${lastActual.capacity} plekken`} />
-        <Stat label="Verwachte piek" value={`${peak.forecast}`} sub={`${peak.week}, bovengrens ${peak.upper}`} />
-        <Stat
-          label="Weken boven capaciteit"
-          value={`${weeksOverCapacity}`}
-          sub="bovengrens > capaciteit"
-          tone={weeksOverCapacity > 0 ? "warn" : "ok"}
-        />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Druktegetal afgelopen 7 dagen" value={kpis.last7} badge={kpis.last7}>
+          <span className="flex items-center gap-1">
+            <DeltaIcon className="h-3.5 w-3.5" />
+            {kpis.delta > 0 ? "+" : ""}
+            {kpis.delta} t.o.v. vorige periode
+          </span>
+        </KpiCard>
+        <KpiCard label="Drukste dienstvenster" value={kpis.busiestWindow.value} badge={kpis.busiestWindow.value}>
+          {formatDayShort(kpis.busiestWindow.start)}, {kpis.busiestWindow.label}
+        </KpiCard>
+        <KpiCard label="Piekuur afgelopen 7 dagen" value={kpis.peak.value} badge={kpis.peak.value}>
+          {formatHour(kpis.peak.date)}
+        </KpiCard>
+        <KpiCard label="Locaties boven 120" value={`${kpis.locationsAbove120} van ${kpis.locationCount}`}>
+          gemiddeld afgelopen 7 dagen
+        </KpiCard>
       </section>
 
-      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-        <div className="mb-2 flex flex-wrap gap-4 text-xs text-slate-500">
-          <Legend className="bg-slate-700 dark:bg-slate-200" label="Gerealiseerd" />
-          <Legend className="bg-sky-600" label="Prognose" />
-          <Legend className="bg-sky-500/30" label="Onzekerheidsband" />
-          <Legend className="bg-rose-500" label="Capaciteit" />
-        </div>
-        <ForecastChart data={data} />
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_372px]">
+        <Card
+          title="Druktegetal per dag, 12 maanden"
+          subtitle="Dagwaarde met voortschrijdend gemiddelde over 7 dagen. Zichtbaar: winterpiek en griepgolf in januari."
+        >
+          <div className="px-4 pb-4">
+            <DailyChart days={days} />
+          </div>
+        </Card>
+        <Card title="Opbouw per component" subtitle="Index per component afgelopen 7 dagen; tussen haakjes het gewicht.">
+          <div className="px-4 pb-4">
+            <ComponentBars components={components} />
+          </div>
+        </Card>
       </section>
 
-      <section className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-        <table className="w-full text-sm">
-          <thead className="text-left text-slate-500">
-            <tr>
-              <th className="px-4 py-2 font-medium">Week</th>
-              <th className="px-4 py-2 font-medium text-right">Prognose</th>
-              <th className="px-4 py-2 font-medium text-right">Bandbreedte</th>
-              <th className="px-4 py-2 font-medium text-right">Capaciteit</th>
-              <th className="px-4 py-2 font-medium">Signaal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {forecast.map((d) => (
-              <tr key={d.week} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">{d.week}</td>
-                <td className="px-4 py-2 text-right tabular-nums">{d.forecast}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-slate-500">
-                  {d.lower}–{d.upper}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">{d.capacity}</td>
-                <td className="px-4 py-2">
-                  {d.forecast > d.capacity ? (
-                    <span className="text-rose-600">Tekort verwacht</span>
-                  ) : d.upper > d.capacity ? (
-                    <span className="text-amber-600">Risico</span>
-                  ) : (
-                    <span className="text-emerald-600">Voldoende</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_372px]">
+        <Card
+          title="Wanneer is het druk?"
+          subtitle="Gemiddeld druktegetal per uur en weekdag over 12 maanden. Nachten en weekenden springen eruit."
+        >
+          <Heatmap values={heatmap} />
+        </Card>
+        <Card title="Drukste locaties" subtitle="Afgelopen 7 dagen, ten opzichte van het eigen gemiddelde.">
+          <BusiestLocations locations={locations.slice(0, 5)} />
+        </Card>
       </section>
-    </main>
-  );
-}
-
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "ok" | "warn" }) {
-  const color = tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-emerald-600" : "";
-  return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
-      <p className="text-xs text-slate-500">{sub}</p>
     </div>
-  );
-}
-
-function Legend({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={`inline-block h-2.5 w-2.5 rounded-sm ${className}`} />
-      {label}
-    </span>
   );
 }
